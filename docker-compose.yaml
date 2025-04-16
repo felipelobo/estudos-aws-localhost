@@ -10,10 +10,10 @@ services:
     environment:
       - SERVICES=sns,sqs,secretsmanager,ssm
       - DEBUG=1
-      - DATA_DIR=/Users/flobo/Documents/estudos-desenvolvimento/tmp/localstack/data
+      - DATA_DIR=${HOME}/Documents/estudos-desenvolvimento/tmp/localstack/data
       - LAMBDA_EXECUTOR=docker
     volumes:
-      - "./localstack-data:/Users/flobo/Documents/estudos-desenvolvimento/tmp/localstack"
+      - "./localstack-data:${HOME}/Documents/estudos-desenvolvimento/tmp/localstack"
       - "/var/run/docker.sock:/var/run/docker.sock"
 
   redis:
