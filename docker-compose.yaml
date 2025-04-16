@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  localstack:
+    image: localstack/localstack:latest
+    container_name: localstack
+    ports:
+      - "4566:4566" # Porta principal do LocalStack
+      - "4576:4576" # Porta para SQS
+    environment:
+      - SERVICES=sns,sqs,secretsmanager,ssm
+      - DEBUG=1
+      - DATA_DIR=/Users/flobo/Documents/estudos-desenvolvimento/tmp/localstack/data
+      - LAMBDA_EXECUTOR=docker
+    volumes:
+      - "./localstack-data:/Users/flobo/Documents/estudos-desenvolvimento/tmp/localstack"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+
+  redis:
+    image: redis:latest
+    container_name: redis
+    ports:
+      - "6379:6379" # Porta padrão do Redis
+    command: ["redis-server"]
+
+  dynamodb:
+    image: amazon/dynamodb-local:latest
+    container_name: dynamodb
+    ports:
+      - "8000:8000" # Porta padrão do DynamoDB Local
+    volumes:
+      - "./dynamodb-data:/home/dynamodblocal/data"
+
+  init-services:
+    image: amazon/aws-cli:latest
+    container_name: init-services
+    depends_on:
+      - dynamodb
+      - localstack
+    environment:
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_DEFAULT_REGION=us-east-1
+    entrypoint: >
+      /bin/sh -c "
+      set -e &&
+      echo 'Aguardando o DynamoDB estar disponível...' &&
+      until curl -s http://dynamodb:8000 > /dev/null; do
+        echo 'Aguardando o serviço DynamoDB iniciar...';
+        sleep 2;
+      done &&
+      
+      echo 'Criando tabela no DynamoDB...' &&
+      aws dynamodb create-table --table-name TestTable --attribute-definitions AttributeName=Id,AttributeType=S --key-schema AttributeName=Id,KeyType=HASH --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5 --endpoint-url http://dynamodb:8000 &&
+      echo 'Inserindo item na tabela DynamoDB...' &&
+      aws dynamodb put-item --table-name TestTable --item '{\"Id\": {\"S\": \"123\"}, \"Name\": {\"S\": \"Test Item\"}}' --endpoint-url http://dynamodb:8000 &&
+      
+      echo 'Criando fila no SQS...' &&
+      aws sqs create-queue --queue-name TestQueue --endpoint-url http://localstack:4566 &&
+      
+      echo 'Criando tópico no SNS...' &&
+      aws sns create-topic --name TestTopic --endpoint-url http://localstack:4566 &&
+      
+      echo 'Todos os recursos foram criados com sucesso!'
+      "
